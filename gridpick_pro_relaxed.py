@@ -207,10 +207,10 @@ def fee_okay(span_pct, grids):
     return step >= (FEE_PCT*MIN_GRID_MULT)
 
 def suggest_grid(px, atrp, liq_ok=True):
-    span = max(0.015, min(0.04, atrp / 60.0))
+    span = max(0.03, min(0.08, atrp / 30.0))
     if not liq_ok: span *= 1.2
     lo = px*(1-span); hi=px*(1+span)
-    grids = max(16, min(60, int(24 + atrp*12)))
+    grids = max(12, min(40, int(18 + atrp*10)))
     span_pct = (hi-lo)/px*100.0
 
     guard=0
@@ -239,7 +239,9 @@ def suggest_grid(px, atrp, liq_ok=True):
     tp_pct = min(20.0, max(5.0, 4.0 + per * 25))
 
     # --- cycle-duration estimate ---
-    bars_to_tp = max(8, min(400, tp_pct / max(atrp, 0.01)))
+    # Realistic velocity: price moves at ~0.35 * ATR per bar in choppy conditions
+    velocity_per_bar = atrp * 0.35
+    bars_to_tp = max(10, min(500, tp_pct / max(velocity_per_bar, 0.01)))
     hours_est = bars_to_tp * IV_MIN / 60
     if hours_est >= 48:
         cycle_str = f"~{hours_est/24:.1f}d"
