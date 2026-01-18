@@ -1,6 +1,6 @@
 # GridPick Pro (RELAXED) 🎨
 
-**The calm colors grid trading analyzer - optimized for Pydroid3**
+**The calm colors grid trading analyzer - now with Desktop + Pydroid3 support**
 
 ## 🇺🇸 USA Regulatory Compliant
 
@@ -19,14 +19,18 @@ This bot is specifically designed to meet US regulatory requirements:
 
 ## ✨ What Makes This Special
 
-### 🎨 Calm Colors Theme (RELAXED Mode)
+### 🎨 Calm Colors Theme (RELAXED = Calm Colors!)
 Unlike most trading bots with harsh, eye-straining colors, GridPick Pro RELAXED uses:
 - **Soft, calm color palette** designed for extended viewing
 - **Easy on the eyes** during long trading sessions
 - **Professional appearance** without the typical "hacker green"
 - **Configurable** - turn colors off if needed
 
-This is the **final Pydroid3 version** before the web browser port - and it's the best one!
+### 🖥️ NEW: Desktop + Mobile Support
+Now works great on both platforms:
+- **Desktop**: Wide tables, clear screen refresh, box-drawing characters
+- **Mobile (Pydroid3)**: Compact output, optimized for small screens
+- **Auto-detect**: Automatically picks the right mode for your platform
 
 ### 🎯 Core Features
 
@@ -36,8 +40,36 @@ This is the **final Pydroid3 version** before the web browser port - and it's th
 - **Cycle Time Estimator**: Estimates grid completion time
 - **Concurrent Analysis**: ThreadPoolExecutor for fast scanning
 - **Extensive Watchlist**: 36 default pairs including BTC, ETH, SOL, memecoins
-- **Mobile Optimized**: Built for Pydroid3 on Android
 - **Environment Configurable**: Control everything via env vars
+
+---
+
+## 🖥️ Desktop vs Mobile Mode
+
+The app auto-detects your platform, but you can override:
+
+```bash
+# Force desktop mode
+export PLATFORM=desktop
+python gridpick_pro_relaxed.py
+
+# Force mobile mode (Pydroid3)
+export PLATFORM=mobile
+python gridpick_pro_relaxed.py
+```
+
+### Desktop Mode Features
+- Wide table format with full column headers
+- Box-drawing characters for visual appeal
+- Clear screen between refreshes (disable with `CLEAR_SCREEN=0`)
+- Detailed grid configuration output
+- Shows liquidity in dollars
+
+### Mobile Mode Features
+- Compact single-line output
+- Minimal headers to save space
+- No screen clearing (scroll-friendly)
+- Abbreviated labels
 
 ---
 
@@ -75,6 +107,10 @@ python gridpick_pro_relaxed.py
 Use environment variables to customize:
 
 ```bash
+# Platform
+export PLATFORM="desktop"       # Force desktop or mobile mode
+export CLEAR_SCREEN="1"         # Clear screen between refreshes (desktop only)
+
 # Scanning
 export INTERVAL="30m"           # Candle interval (5m, 15m, 30m, 1h, 4h, 1d)
 export LIMIT="240"              # Number of candles to analyze
@@ -104,39 +140,67 @@ python gridpick_pro_relaxed.py
 
 **Disable colors** (for plain output):
 
-Edit line 47 in the script:
+Edit the script:
 ```python
 USE_COLOR = False  # Change True to False
 ```
 
 **Color palette** (calm theme):
 - Grey - headers and dividers
-- Red - sell levels
-- Green - buy levels
-- Yellow - warnings
-- Blue - key metrics
-- Cyan - highlights
-- Magenta - TP targets
+- Green - qualified picks, buy signals
+- Yellow - warnings, relaxed picks
+- Cyan - highlights, score colors
+- Dim - timestamps, secondary info
 
 ---
 
 ## 📈 Output Example
 
+### Desktop Mode
 ```
-╔══════════════════════════════════════════════════════════════╗
-║          GridPick Pro (RELAXED) - Top 5 Picks               ║
-╚══════════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════════╗
+║              GridPick Pro (RELAXED) — Desktop Mode             ║
+╚════════════════════════════════════════════════════════════════╝
 
-#1  SOL/USDT  [Kraken]
-    ATR: 2.45%  Chop: 0.68  Drift: +1.2%  Vol: $125M
-    Grid: 0.82% spacing (3.4x ATR)
-    Entry: $142.50  Buy: $141.33  Sell: $143.67
-    TP: $145.80 (+2.3%)  Est: ~8.5 hours
+Settings: 30m interval | ~5 days lookback | 36 pairs | 25s refresh
+Filters:  ATR% ≥ 0.1 | Chop ≥ 0.2 | Drift ≤ 7.0% | Liq ≥ $50,000
 
-#2  LINK/USDT  [CoinGecko]
-    ATR: 1.89%  Chop: 0.71  Drift: -0.5%  Vol: $78M
-    Grid: 0.65% spacing (3.1x ATR)
-    ...
+  #   Q      Symbol        Score    Chop     ATR%    Drift     ADX     Liquidity         Price
+──────────────────────────────────────────────────────────────────────────────────────────────
+  1   ✓    SOL/USDT         72.5    0.68     2.45      1.2    42.1      $125,000    142.500000
+  2   ✓    LINK/USDT        68.3    0.71     1.89      0.5    38.7       $78,000     14.250000
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏆 TOP PICK: SOL/USDT  [QUALIFIED]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Metrics:
+  Score: 72.5  |  Chop: 0.68  |  ATR: 2.45%  |  Drift: 1.2%  |  ADX: 42.1
+  Liquidity: $125,000
+
+Grid Configuration:
+  Range:      141.33000000  →  143.67000000
+  Levels:     24
+  Step Size:  0.082%
+
+Take Profit:
+  Target:     ~8.50%
+  Est. Cycle: ~12.5h
+```
+
+### Mobile Mode
+```
+▶ GridPick Pro (RELAXED) — 30m / ~5d | 36 pairs | refresh=25s
+ATR%≥0.1 | Chop≥0.2 | Drift≤7.0%
+
+#  Q  Symbol      Score   Chop   ATR%  Drift   ADX   Price
+1  +  SOL/USDT    72.5   0.68   2.45%  1.2%   42.1  142.500000
+2  +  LINK/USDT   68.3   0.71   1.89%  0.5%   38.7  14.250000
+
+* Top Pick SOL/USDT — QUALIFIED
+Score 72.5 | Chop 0.68  ATR 2.45%  Drift 1.2%
+Grid: 141.33 → 143.67  Lvls: 24  Step: 0.08%
+TP: ~8.50% | Est: ~12.5h
 ```
 
 ---
@@ -172,37 +236,18 @@ USE_COLOR = False  # Change True to False
 - Ensures profitable grids after fees
 - Dynamically adjusts to volatility
 
-**Take-Profit**:
-- Based on recent price action
-- Adjusts for market conditions
-- **Note**: TP time estimation needs improvement (known issue)
-
 ---
 
-## 📁 Export Features
+## 📱 Platform Support
 
-GridPick saves results to `exports/` directory:
-- `gridpick_latest.json` - Last scan results
-- `gridpick_latest.csv` - CSV format
-- `gridpick_latest.txt` - Human-readable
-- `gridpick_log.jsonl` - Append-only log
-- Timestamped snapshots
-
----
-
-## ⚠️ Known Issues & Roadmap
-
-### Current Issues
-1. **Grid spacing too tight** - Microscopic spacing needs better scaling
-2. **TP time assessment faulty** - Cycle estimator needs recalibration
-3. **Volume filtering** - Could be more sophisticated
-
-### Planned Improvements
-- Fix grid spacing algorithm (make it more conservative)
-- Improve TP time estimation accuracy
-- Add backtest mode
-- Enhanced volume analysis
-- Web UI version (grok-gridpick spinoff in progress)
+| Platform | Status | Notes |
+|----------|--------|-------|
+| **Desktop Linux** | ✅ Full | Wide tables, clear screen |
+| **Desktop macOS** | ✅ Full | Wide tables, clear screen |
+| **Desktop Windows** | ✅ Full | Wide tables, clear screen |
+| **Pydroid3 (Android)** | ✅ Full | Compact mode, original design |
+| **Termux (Android)** | ✅ Works | Auto-detects as mobile |
+| **SSH/Remote** | ✅ Works | Detects terminal width |
 
 ---
 
@@ -213,23 +258,13 @@ GridPick saves results to `exports/` directory:
 - Analyzing multiple pairs quickly
 - Identifying ranging markets
 - Mobile trading analysis (Pydroid3)
+- Desktop market scanning
 - Visual market scanning with calm colors
 
 **Not Ideal For**:
 - Automated execution (analysis only)
 - Trending markets (looks for chop)
 - Ultra-low latency (25s refresh default)
-
----
-
-## 📱 Pydroid3 Optimization
-
-This bot was built specifically for Pydroid3:
-- Minimal dependencies (requests only)
-- Efficient memory usage
-- Terminal-friendly output
-- No heavy libs (no pandas, numpy, TA-Lib)
-- Works offline once data fetched
 
 ---
 
@@ -265,41 +300,11 @@ This is an **analysis tool only** - it does NOT execute trades automatically.
 
 ---
 
-## 📊 Comparison with Other Versions
-
-| Version | Status | Notes |
-|---------|--------|-------|
-| **GridPick Pro RELAXED** | ✅ Final | This version - calm colors, Pydroid3 |
-| grok-gridpick (web) | 🚧 Beta | Web UI spinoff, not as good yet |
-| gridpick_enhanced | 📦 Archive | Earlier version |
-
-**This is the recommended version** for terminal/mobile use!
-
----
-
-## 🤝 Contributing
-
-This is a personal trading tool. Feel free to fork and modify for your own use.
-
-Improvements welcome:
-- Better grid spacing algorithm
-- More accurate TP time estimation
-- Additional exchange support
-- Enhanced filters
-
----
-
-## 📄 License
-
-MIT License - See LICENSE file
-
----
-
 ## 🎨 Why "RELAXED"?
 
 Most trading terminals use harsh, bright colors that cause eye strain during long sessions.
 
-GridPick Pro RELAXED uses a carefully chosen calm color palette that:
+GridPick Pro RELAXED uses a carefully chosen **calm color palette** that:
 - Reduces eye fatigue
 - Looks professional
 - Maintains readability
@@ -309,6 +314,12 @@ GridPick Pro RELAXED uses a carefully chosen calm color palette that:
 
 ---
 
+## 📄 License
+
+MIT License - See LICENSE file
+
+---
+
 **Built with care for US traders who value both compliance and comfort.**
 
-**Final Pydroid3 version** - optimized, tested, and ready to use!
+**Works on Desktop + Pydroid3** - optimized, tested, and ready to use!
