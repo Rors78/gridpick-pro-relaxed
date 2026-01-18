@@ -3,14 +3,39 @@
 #  GridPick Pro (RELAXED)
 #  Kraken primary — CoinGecko fallback
 #  Dynamic Take-Profit + TPDEBUG output + Cycle Estimator
+#  Desktop + Pydroid3 support
 # ==========================================================
-import os, sys, time, math, json, random, shutil
+import os, sys, time, math, json, random, shutil, platform
 from statistics import mean
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+# -------------------- Platform Detection --------------------
+def detect_platform():
+    """Detect if running on desktop or Pydroid3 (Android)."""
+    # Check for Pydroid3/Android indicators
+    if 'ANDROID_ROOT' in os.environ:
+        return 'mobile'
+    if 'PYDROID3' in os.environ:
+        return 'mobile'
+    if os.path.exists('/data/data/ru.iiec.pydroid3'):
+        return 'mobile'
+    # Check platform
+    if platform.system() in ('Linux', 'Darwin', 'Windows'):
+        # Could be desktop Linux or Android - check for terminal width
+        try:
+            cols = shutil.get_terminal_size().columns
+            if cols >= 100:
+                return 'desktop'
+        except:
+            pass
+    return 'mobile'  # Default to mobile for safety
+
+PLATFORM = os.environ.get("PLATFORM", detect_platform()).lower()
+DESKTOP_MODE = PLATFORM == 'desktop'
 
 # -------------------- Config --------------------
 KRAKEN_API = "https://api.kraken.com/0/public"
@@ -20,6 +45,9 @@ INTERVAL = os.environ.get("INTERVAL", "30m").lower()
 LIMIT    = int(os.environ.get("LIMIT", "240"))
 REFRESH  = int(os.environ.get("REFRESH", "25"))
 TOPN     = int(os.environ.get("TOPN", "5"))
+
+# Desktop-specific settings
+CLEAR_SCREEN = DESKTOP_MODE and os.environ.get("CLEAR_SCREEN", "1") == "1"
 
 # Filters
 MIN_ATR_PCT = float(os.environ.get("MIN_ATR_PCT",  "0.10"))
@@ -43,14 +71,14 @@ DEFAULT_WATCH = [
 ]
 WATCHLIST = [s.strip().upper() for s in os.environ.get("WATCHLIST", ",".join(DEFAULT_WATCH)).split(",") if s.strip()]
 
-# Force color in PyDroid; set to False if you want plain output
+# Colors - calm/relaxed palette
 USE_COLOR = True
 def _c(s): return s if USE_COLOR else ""
 FG = {k:_c(v) for k,v in {
   "gry":"\033[90m","red":"\033[91m","grn":"\033[92m","ylw":"\033[93m",
   "blu":"\033[94m","mag":"\033[95m","cyn":"\033[96m","wht":"\033[97m"
 }.items()}
-BOLD=_c("\033[1m"); RESET=_c("\033[0m")
+BOLD=_c("\033[1m"); RESET=_c("\033[0m"); DIM=_c("\033[2m")
 
 # -------------------- HTTP --------------------
 SESSION = requests.Session()
@@ -80,6 +108,20 @@ def cscore(x):
     if x>=60: return FG["grn"]
     if x>=45: return FG["ylw"]
     return FG["gry"]
+
+def clear_terminal():
+    """Clear the terminal screen."""
+    if os.name == 'nt':
+        os.system('cls')
+    else:
+        os.system('clear')
+
+def get_term_width():
+    """Get terminal width, with fallback."""
+    try:
+        return shutil.get_terminal_size().columns
+    except:
+        return 80 if DESKTOP_MODE else 50
 
 # -------------------- Kraken OHLC --------------------
 def k_altname(sym):
@@ -239,7 +281,6 @@ def suggest_grid(px, atrp, liq_ok=True):
     tp_pct = min(20.0, max(5.0, 4.0 + per * 25))
 
     # --- cycle-duration estimate ---
-    # Realistic velocity: price moves at ~0.35 * ATR per bar in choppy conditions
     velocity_per_bar = atrp * 0.35
     bars_to_tp = max(10, min(500, tp_pct / max(velocity_per_bar, 0.01)))
     hours_est = bars_to_tp * IV_MIN / 60
@@ -280,18 +321,17 @@ def scan_once():
     results.sort(key=lambda r: r["score"], reverse=True)
     return results
 
-# -------------------- Display --------------------
-def banner():
+# -------------------- Display: Mobile (Pydroid3) --------------------
+def banner_mobile():
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     hdr = (f"{BOLD}▶ GridPick Pro (RELAXED) — {INTERVAL} / ~{int(LIMIT*IV_MIN/1440)}d  "
-           f"| Kraken→CoinGecko {len(WATCHLIST)} pairs | refresh={REFRESH}s{RESET}")
+           f"| {len(WATCHLIST)} pairs | refresh={REFRESH}s{RESET}")
     print(hdr)
-    print(f"Filters: ATR%≥{MIN_ATR_PCT} | Chop≥{MIN_CHOP} | Drift≤{MAX_DRIFT}% | "
-          f"Liq ≥ ${int(MIN_TURNOVER_USD):,} / ${int(CG_MIN_TURNOVER_USD):,} (CG)")
+    print(f"ATR%≥{MIN_ATR_PCT} | Chop≥{MIN_CHOP} | Drift≤{MAX_DRIFT}%")
     print(FG["gry"] + ts + RESET)
 
-def row_line(i, r):
-    badge = "🟢" if r["qualified"] else "⚠️"
+def row_line_mobile(i, r):
+    badge = "+" if r["qualified"] else "~"
     return (f"{FG['gry']}{i:<2}{RESET} {badge} "
             f"{BOLD}{r['symbol']:<10}{RESET}  "
             f"{cscore(r['score'])}{r['score']:>5.1f}{RESET}  "
@@ -299,29 +339,118 @@ def row_line(i, r):
             f"drift {r['drift']:.1f}%  adx {r['adx']:.1f}  "
             f"px {r['price']:.6f}")
 
-def print_table(top):
+def print_table_mobile(top):
     print(f"{BOLD}#  Q  Symbol      Score   Chop   ATR%  Drift   ADX   Price{RESET}")
     for i, r in enumerate(top, 1):
-        print(row_line(i, r))
+        print(row_line_mobile(i, r))
+
+def print_pick_mobile(m):
+    rec = suggest_grid(m["price"], m["atr_pct"], liq_ok=(m["turnover"]>=MIN_TURNOVER_USD))
+    note = "QUALIFIED" if m["qualified"] else "RELAXED"
+    print(f"\n{BOLD}* Top Pick {m['symbol']} — {note}{RESET}")
+    print(f"Score {cscore(m['score'])}{m['score']:.1f}{RESET} | "
+          f"Chop {m['chop']:.2f}  ATR {m['atr_pct']:.2f}%  Drift {m['drift']:.1f}%")
+    print(f"Grid: {rec['lo']:.6f} → {rec['hi']:.6f}  Lvls: {rec['grids']}  Step: {rec['step_pct']:.2f}%")
+    print(f"TP: ~{rec['tp_pct']:.2f}% | Est: {rec['cycle']}\n")
+
+# -------------------- Display: Desktop --------------------
+def banner_desktop():
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    width = get_term_width()
+    line = "═" * (width - 2)
+
+    print(f"{FG['cyn']}╔{line}╗{RESET}")
+    title = f"  GridPick Pro (RELAXED) — Desktop Mode  "
+    padding = (width - len(title) - 4) // 2
+    print(f"{FG['cyn']}║{RESET}{' ' * padding}{BOLD}{title}{RESET}{' ' * padding}{FG['cyn']}  ║{RESET}")
+    print(f"{FG['cyn']}╚{line}╝{RESET}")
+
+    print(f"\n{BOLD}Settings:{RESET} {INTERVAL} interval | ~{int(LIMIT*IV_MIN/1440)} days lookback | {len(WATCHLIST)} pairs | {REFRESH}s refresh")
+    print(f"{BOLD}Filters:{RESET}  ATR% ≥ {MIN_ATR_PCT} | Chop ≥ {MIN_CHOP} | Drift ≤ {MAX_DRIFT}% | Liq ≥ ${int(MIN_TURNOVER_USD):,}")
+    print(f"{BOLD}Sources:{RESET} Kraken (primary) → CoinGecko (fallback)")
+    print(f"{DIM}{ts}{RESET}\n")
+
+def print_table_desktop(top):
+    width = get_term_width()
+
+    # Header
+    hdr = f"{'#':>3}  {'Q':^3}  {'Symbol':<12}  {'Score':>7}  {'Chop':>6}  {'ATR%':>7}  {'Drift':>7}  {'ADX':>6}  {'Liquidity':>12}  {'Price':>14}"
+    print(f"{BOLD}{hdr}{RESET}")
+    print(f"{FG['gry']}{'─' * min(len(hdr) + 10, width)}{RESET}")
+
+    for i, r in enumerate(top, 1):
+        badge = f"{FG['grn']}✓{RESET}" if r["qualified"] else f"{FG['ylw']}~{RESET}"
+        liq_str = f"${int(r['turnover']):,}"
+
+        line = (f"{FG['gry']}{i:>3}{RESET}  {badge:^3}  "
+                f"{BOLD}{r['symbol']:<12}{RESET}  "
+                f"{cscore(r['score'])}{r['score']:>7.1f}{RESET}  "
+                f"{r['chop']:>6.2f}  "
+                f"{r['atr_pct']:>7.2f}  "
+                f"{r['drift']:>7.1f}  "
+                f"{r['adx']:>6.1f}  "
+                f"{liq_str:>12}  "
+                f"{r['price']:>14.6f}")
+        print(line)
+    print()
+
+def print_pick_desktop(m):
+    rec = suggest_grid(m["price"], m["atr_pct"], liq_ok=(m["turnover"]>=MIN_TURNOVER_USD))
+    note = f"{FG['grn']}QUALIFIED{RESET}" if m["qualified"] else f"{FG['ylw']}RELAXED{RESET}"
+    width = get_term_width()
+
+    print(f"{FG['cyn']}{'━' * min(60, width)}{RESET}")
+    print(f"{BOLD}🏆 TOP PICK: {m['symbol']}{RESET}  [{note}]")
+    print(f"{FG['cyn']}{'━' * min(60, width)}{RESET}")
+
+    print(f"\n{BOLD}Metrics:{RESET}")
+    print(f"  Score: {cscore(m['score'])}{m['score']:.1f}{RESET}  |  Chop: {m['chop']:.2f}  |  ATR: {m['atr_pct']:.2f}%  |  Drift: {m['drift']:.1f}%  |  ADX: {m['adx']:.1f}")
+    print(f"  Liquidity: ${int(m['turnover']):,}")
+
+    print(f"\n{BOLD}Grid Configuration:{RESET}")
+    print(f"  Range:      {FG['cyn']}{rec['lo']:.8f}{RESET}  →  {FG['cyn']}{rec['hi']:.8f}{RESET}")
+    print(f"  Levels:     {FG['ylw']}{rec['grids']}{RESET}")
+    print(f"  Step Size:  {rec['step_pct']:.3f}%")
+
+    print(f"\n{BOLD}Take Profit:{RESET}")
+    print(f"  Target:     {FG['grn']}~{rec['tp_pct']:.2f}%{RESET}")
+    print(f"  Est. Cycle: {FG['gry']}{rec['cycle']}{RESET}")
+
+    print(f"\n{DIM}EXPORT: symbol={m['symbol']}, low={rec['lo']:.8f}, high={rec['hi']:.8f}, levels={rec['grids']}, step={rec['step_pct']:.4f}%, tp={rec['tp_pct']:.2f}%{RESET}")
+    print()
+
+# -------------------- Display Router --------------------
+def banner():
+    if DESKTOP_MODE:
+        banner_desktop()
+    else:
+        banner_mobile()
+
+def print_table(top):
+    if DESKTOP_MODE:
+        print_table_desktop(top)
+    else:
+        print_table_mobile(top)
 
 def print_pick(m):
-    rec = suggest_grid(m["price"], m["atr_pct"], liq_ok=(m["turnover"]>=MIN_TURNOVER_USD))
-    note = "QUALIFIED" if m["qualified"] else "RELAXED ⚠"
-    print(f"\n{BOLD}🏆 Top Pick {m['symbol']} — {note}{RESET}")
-    print(f"Score {cscore(m['score'])}{m['score']:.1f}{RESET} | "
-          f"Chop {m['chop']:.2f}  ATR {m['atr_pct']:.2f}%  Drift {m['drift']:.1f}%  "
-          f"ADX {m['adx']:.1f}  Liq ${int(m['turnover']):,}")
-    print(f"Grid ⇒ {FG['cyn']}{rec['lo']:.6f}{RESET} → {FG['cyn']}{rec['hi']:.6f}{RESET}   "
-          f"Levels ⇒ {FG['ylw']}{rec['grids']}{RESET}   Step ≈ {rec['step_pct']:.2f}%")
-    print(f"TP ⇒ ~{rec['tp_pct']:.2f}% (full-cycle take-profit) "
-          f"{FG['gry']}expected {rec['cycle']}{RESET}\n")
-    print(FG["gry"]+f"EXPORT: symbol={m['symbol']}, low={rec['lo']:.8f}, high={rec['hi']:.8f}, "
-          f"levels={rec['grids']}, step={rec['step_pct']:.4f}%, tp={rec['tp_pct']:.2f}%"+RESET)
+    if DESKTOP_MODE:
+        print_pick_desktop(m)
+    else:
+        print_pick_mobile(m)
 
 # -------------------- Main --------------------
 def main():
+    mode_str = "Desktop" if DESKTOP_MODE else "Mobile/Pydroid3"
+    print(f"{DIM}Platform detected: {mode_str}{RESET}")
+    print(f"{DIM}Set PLATFORM=desktop or PLATFORM=mobile to override{RESET}\n")
+
     banner()
+
     while True:
+        if CLEAR_SCREEN and DESKTOP_MODE:
+            clear_terminal()
+            banner()
+
         results = scan_once()
         if not results:
             print(FG["red"]+"⚠ No data this pass (network/API)."+RESET)
@@ -339,6 +468,7 @@ def main():
             print_table(results[:TOPN])
             print_pick(best)
 
+        print(f"{DIM}Next refresh in {REFRESH}s... (Ctrl+C to exit){RESET}")
         time.sleep(REFRESH)
 
 
